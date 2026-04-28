@@ -1,0 +1,378 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Full Quiz System</title>
+
+<style>
+body{
+    margin:0;
+    font-family:'Segoe UI', Arial;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+}
+
+.container{
+    max-width:1100px;
+    margin:40px auto;
+    background:white;
+    padding:30px;
+    border-radius:15px;
+    box-shadow:0 15px 40px rgba(0,0,0,0.2);
+}
+
+.hidden{display:none}
+
+h1{text-align:center;color:#2c3e50}
+
+button{
+    padding:10px 15px;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:bold;
+    margin:5px;
+}
+
+.teacher{background:#2c3e50;color:white}
+.student{background:#3498db;color:white}
+.success{background:#27ae60;color:white}
+.danger{background:#e74c3c;color:white}
+
+input,textarea,select{
+    width:100%;
+    padding:10px;
+    margin:6px 0;
+    border-radius:8px;
+    border:1px solid #ccc;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th{
+    background:#2c3e50;
+    color:white;
+    padding:10px;
+}
+
+td{
+    padding:8px;
+    border-bottom:1px solid #eee;
+}
+
+.card{
+    background:#f9f9f9;
+    padding:12px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
+.timer{
+    text-align:center;
+    font-weight:bold;
+    color:#e74c3c;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🎓 Quiz System</h1>
+
+<div id="roleBox">
+<button class="teacher" onclick="teacherLogin()">Teacher</button>
+<button class="student" onclick="openStudent()">Student</button>
+</div>
+
+<!-- LOGIN -->
+<div id="loginPanel" class="hidden">
+<input id="tUser" placeholder="Username">
+<input id="tPass" type="password" placeholder="Password">
+<button class="success" onclick="registerTeacher()">Register</button>
+<button class="teacher" onclick="loginTeacher()">Login</button>
+</div>
+
+<!-- TEACHER -->
+<div id="teacherPanel" class="hidden">
+
+<h2>Teacher Panel</h2>
+
+<input id="timeLimit" type="number" placeholder="Exam time (minutes)">
+
+<textarea id="q" placeholder="Question"></textarea>
+
+<input id="A" placeholder="A">
+<input id="B" placeholder="B">
+<input id="C" placeholder="C">
+<input id="D" placeholder="D">
+
+<input id="marks" type="number" placeholder="Marks">
+
+<select id="correct">
+<option>A</option><option>B</option>
+<option>C</option><option>D</option>
+</select>
+
+<button class="teacher" onclick="saveQ()">Save Question</button>
+
+<h3>Questions</h3>
+<div id="table"></div>
+
+<h3>Student Results</h3>
+<div id="results"></div>
+
+<button class="danger" onclick="logout()">Logout</button>
+
+</div>
+
+<!-- STUDENT -->
+<div id="studentPanel" class="hidden">
+
+<h2>Student Panel</h2>
+
+<input id="studentName" placeholder="Your Name">
+<input id="studentClass" placeholder="Your Class">
+
+<div class="timer" id="timer"></div>
+
+<div id="quiz"></div>
+
+<button class="student" onclick="submitQuiz()">Submit</button>
+
+<div id="result"></div>
+
+<button class="danger" onclick="logout()">Logout</button>
+
+</div>
+
+</div>
+
+<script>
+
+let questions = JSON.parse(localStorage.getItem("questions")) || [];
+let results = JSON.parse(localStorage.getItem("results")) || [];
+let teachers = JSON.parse(localStorage.getItem("teachers")) || [];
+
+let startTime = null;
+
+/* ROLE */
+function teacherLogin(){
+    roleBox.classList.add("hidden");
+    loginPanel.classList.remove("hidden");
+}
+
+function openStudent(){
+    roleBox.classList.add("hidden");
+    studentPanel.classList.remove("hidden");
+    startQuiz();
+}
+
+/* AUTH */
+function registerTeacher(){
+    teachers.push({u:tUser.value,p:tPass.value});
+    localStorage.setItem("teachers",JSON.stringify(teachers));
+    alert("Registered");
+}
+
+function loginTeacher(){
+
+    let t = teachers.find(x=>x.u==tUser.value && x.p==tPass.value);
+
+    if(!t){
+        alert("Wrong login");
+        return;
+    }
+
+    loginPanel.classList.add("hidden");
+    teacherPanel.classList.remove("hidden");
+
+    renderQuestions();
+    renderResults();
+}
+
+/* LOGOUT */
+function logout(){
+    location.reload();
+}
+
+/* CRUD QUESTIONS */
+function saveQ(){
+
+    questions.push({
+        q:q.value,
+        A:A.value,
+        B:B.value,
+        C:C.value,
+        D:D.value,
+        correct:correct.value,
+        marks:Number(marks.value)
+    });
+
+    localStorage.setItem("questions",JSON.stringify(questions));
+    renderQuestions();
+}
+
+function renderQuestions(){
+
+    table.innerHTML = questions.map((q,i)=>`
+    <div class="card">
+    ${q.q}<br>
+    A:${q.A} B:${q.B} C:${q.C} D:${q.D}<br>
+    Correct: ${q.correct} | Marks: ${q.marks}
+    </div>
+    `).join("");
+}
+
+/* STUDENT */
+function startQuiz(){
+
+    startTime = Date.now();
+
+    quiz.innerHTML = questions.map((q,i)=>`
+    <div class="card">
+    <p><b>Q${i+1}:</b> ${q.q}</p>
+    ${["A","B","C","D"].map(o=>`
+        <input type="radio" name="q${i}" value="${o}"> ${q[o]}<br>
+    `).join("")}
+    </div>
+    `).join("");
+
+    setInterval(timerFunc,1000);
+}
+
+/* TIMER */
+function timerFunc(){
+
+    let limit = Number(timeLimit.value || 60);
+    let passed = (Date.now()-startTime)/60000;
+    let left = limit - passed;
+
+    if(left > 0){
+        timer.innerHTML = "⏳ " + Math.floor(left) + " min left";
+    }else{
+        quiz.innerHTML = "<h3>Time Finished ❌</h3>";
+    }
+}
+
+/* SUBMIT */
+function submitQuiz(){
+
+    let name = studentName.value;
+    let cls = studentClass.value;
+
+    if(!name || !cls){
+        alert("Enter name and class");
+        return;
+    }
+
+    let score=0,total=0,review="";
+
+    questions.forEach((q,i)=>{
+
+        total += q.marks;
+
+        let ans = document.querySelector(`input[name=q${i}]:checked`)?.value;
+
+        if(!ans) return;
+
+        if(ans==q.correct){
+            score += q.marks;
+        }else{
+            review += `
+            <div class="card">
+            ❌ ${q.q}<br>
+            Correct: ${q.correct}
+            </div>`;
+        }
+    });
+
+    let percent = total ? (score/total)*100 : 0;
+
+    results.push({
+        name:name,
+        class:cls,
+        score:score,
+        total:total,
+        percent:percent.toFixed(2)
+    });
+
+    localStorage.setItem("results",JSON.stringify(results));
+
+    result.innerHTML = `
+    <div class="card">
+    ${name} (${cls})<br>
+    ${score}/${total} (${percent.toFixed(2)}%)
+    </div>
+    ${review}
+    `;
+}
+
+/* RESULT CRUD */
+function renderResults(){
+
+    let html = `
+    <table>
+    <tr>
+    <th>Name</th><th>Class</th>
+    <th>Score</th><th>Total</th><th>%</th><th>Actions</th>
+    </tr>
+    `;
+
+    results.forEach((r,i)=>{
+        html += `
+        <tr>
+        <td>${r.name}</td>
+        <td>${r.class}</td>
+        <td>${r.score}</td>
+        <td>${r.total}</td>
+        <td>${r.percent}</td>
+        <td>
+        <button onclick="editResult(${i})">Edit</button>
+        <button onclick="deleteResult(${i})">Delete</button>
+        </td>
+        </tr>
+        `;
+    });
+
+    html += `</table>`;
+
+    document.getElementById("results").innerHTML = html;
+}
+
+/* EDIT RESULT */
+function editResult(i){
+
+    let r = results[i];
+
+    let name = prompt("Name:", r.name);
+    let cls = prompt("Class:", r.class);
+    let score = prompt("Score:", r.score);
+
+    if(name!==null) r.name=name;
+    if(cls!==null) r.class=cls;
+    if(score!==null) r.score=Number(score);
+
+    r.percent = r.total ? ((r.score/r.total)*100).toFixed(2) : 0;
+
+    localStorage.setItem("results",JSON.stringify(results));
+    renderResults();
+}
+
+/* DELETE */
+function deleteResult(i){
+    if(confirm("Delete?")){
+        results.splice(i,1);
+        localStorage.setItem("results",JSON.stringify(results));
+        renderResults();
+    }
+}
+
+</script>
+
+</body>
+</html>
